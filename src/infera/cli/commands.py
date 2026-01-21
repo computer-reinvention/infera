@@ -8,6 +8,13 @@ import typer
 from infera.cli import output
 from infera.core.state import StateManager
 from infera.core.exceptions import InferaError
+from infera.core.auth import ensure_api_key
+
+
+def _require_api_key() -> None:
+    """Ensure API key is available, exit if not."""
+    if not ensure_api_key():
+        raise typer.Exit(1)
 
 
 def init_cmd(
@@ -39,6 +46,7 @@ def init_cmd(
 ) -> None:
     """Analyze codebase and create infrastructure config."""
     output.set_verbose(verbose)
+    _require_api_key()
     try:
         asyncio.run(_init_async(path, provider, non_interactive))
     except InferaError as e:
@@ -63,7 +71,12 @@ async def _init_async(path: Path, provider: str, non_interactive: bool) -> None:
     output.step_done("Analysis complete")
 
     if config.detected_frameworks:
-        output.detected("Frameworks", config.detected_frameworks)
+        # Extract framework names from dicts
+        framework_names = [
+            str(f.get("name", f)) if isinstance(f, dict) else str(f)
+            for f in config.detected_frameworks
+        ]
+        output.detected("Frameworks", framework_names)
     if config.has_dockerfile:
         output.detected("Docker", ["Dockerfile found"])
     output.detected("Architecture", [config.architecture_type or "unknown"])
@@ -74,19 +87,24 @@ async def _init_async(path: Path, provider: str, non_interactive: bool) -> None:
     state.save_config(config)
 
     output.success_box("Ready!", "Configuration saved to .infera/config.yaml")
-    output.next_steps([
-        "Review config: [cyan]cat .infera/config.yaml[/cyan]",
-        "Generate Terraform & plan: [cyan]infera plan[/cyan]",
-        "Deploy: [cyan]infera apply[/cyan]",
-    ])
+    output.next_steps(
+        [
+            "Review config: [cyan]cat .infera/config.yaml[/cyan]",
+            "Generate Terraform & plan: [cyan]infera plan[/cyan]",
+            "Deploy: [cyan]infera apply[/cyan]",
+        ]
+    )
 
 
 def plan_cmd(
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output."),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose output."
+    ),
 ) -> None:
     """Generate Terraform files and run terraform plan."""
     output.set_verbose(verbose)
+    _require_api_key()
     try:
         asyncio.run(_plan_async(quiet))
     except InferaError as e:
@@ -121,12 +139,21 @@ async def _plan_async(quiet: bool) -> None:
 
 
 def apply_cmd(
-    auto_approve: bool = typer.Option(False, "--auto-approve", "-y", help="Skip confirmation."),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying (runs terraform plan)."),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
+    auto_approve: bool = typer.Option(
+        False, "--auto-approve", "-y", help="Skip confirmation."
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview changes without applying (runs terraform plan).",
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose output."
+    ),
 ) -> None:
     """Run terraform apply to provision infrastructure."""
     output.set_verbose(verbose)
+    _require_api_key()
     try:
         asyncio.run(_apply_async(auto_approve, dry_run))
     except InferaError as e:
@@ -184,11 +211,16 @@ async def _apply_async(auto_approve: bool, dry_run: bool = False) -> None:
 
 
 def destroy_cmd(
-    auto_approve: bool = typer.Option(False, "--auto-approve", "-y", help="Skip confirmation."),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
+    auto_approve: bool = typer.Option(
+        False, "--auto-approve", "-y", help="Skip confirmation."
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose output."
+    ),
 ) -> None:
     """Run terraform destroy to remove infrastructure."""
     output.set_verbose(verbose)
+    _require_api_key()
     try:
         asyncio.run(_destroy_async(auto_approve))
     except InferaError as e:
@@ -231,7 +263,9 @@ async def _destroy_async(auto_approve: bool) -> None:
 
 def status_cmd(
     json_output: bool = typer.Option(False, "--json", help="Output JSON."),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose output."
+    ),
 ) -> None:
     """Show current project state."""
     output.set_verbose(verbose)
@@ -255,10 +289,71 @@ def status_cmd(
         else:
             output.info("No Terraform files yet")
 
-        output.next_steps([
-            "Generate plan: [cyan]infera plan[/cyan]",
-            "Apply: [cyan]infera apply[/cyan]",
-        ])
+        output.next_steps(
+            [
+                "Generate plan: [cyan]infera plan[/cyan]",
+                "Apply: [cyan]infera apply[/cyan]",
+            ]
+        )
+
+
+def auth_cmd(
+    status: bool = typer.Option(
+        False, "--status", "-s", help="Show current auth status."
+    ),
+    update: bool = typer.Option(False, "--update", "-u", help="Update API key."),
+) -> None:
+    """Manage Anthropic API key authentication."""
+    from infera.core.auth import (
+        get_api_key,
+        save_api_key,
+        is_valid_api_key,
+        CREDENTIALS_FILE,
+    )
+
+    if status or (not status and not update):
+        # Show current status
+        key = get_api_key()
+        if key:
+            # Mask the key for display
+            masked = key[:10] + "..." + key[-4:] if len(key) > 14 else "***"
+            output.step_done(f"API key configured: {masked}")
+            output.info(f"Credentials file: {CREDENTIALS_FILE}")
+        else:
+            output.warn("No API key configured")
+            output.next_steps(
+                [
+                    "Set key: [cyan]infera auth --update[/cyan]",
+                    "Or set environment variable: [cyan]export ANTHROPIC_API_KEY=sk-ant-...[/cyan]",
+                ]
+            )
+        return
+
+    if update:
+        # Update API key
+        output.console.print()
+        output.console.print(
+            "Get your API key at: [link=https://console.anthropic.com/settings/keys]https://console.anthropic.com/settings/keys[/link]"
+        )
+        output.console.print()
+
+        key = output.console.input(
+            "[bold]Enter your Anthropic API key:[/bold] "
+        ).strip()
+
+        if not key:
+            output.error("No API key provided.")
+            raise typer.Exit(1)
+
+        if not is_valid_api_key(key):
+            output.warn(
+                "This doesn't look like a valid Anthropic API key (should start with 'sk-ant-')."
+            )
+            if not output.confirm("Save anyway?", default=False):
+                raise typer.Exit(1)
+
+        save_api_key(key)
+        output.step_done(f"API key saved to {CREDENTIALS_FILE}")
 
 
 def deploy_cmd(
@@ -305,15 +400,18 @@ def deploy_cmd(
 ) -> None:
     """Full deployment workflow: analyze, plan, and deploy in one command."""
     output.set_verbose(verbose)
+    _require_api_key()
     try:
-        asyncio.run(_deploy_async(
-            path,
-            provider,
-            non_interactive,
-            auto_approve,
-            skip_preflight,
-            resume,
-        ))
+        asyncio.run(
+            _deploy_async(
+                path,
+                provider,
+                non_interactive,
+                auto_approve,
+                skip_preflight,
+                resume,
+            )
+        )
     except InferaError as e:
         output.error(str(e))
         raise typer.Exit(1)
@@ -332,7 +430,11 @@ async def _deploy_async(
 ) -> None:
     from infera.agent import InferaAgent
     from infera.core.preflight import PreflightChecker, CheckStatus
-    from infera.core.phases import DeploymentStateManager, DeploymentState, DeploymentPhase
+    from infera.core.phases import (
+        DeploymentStateManager,
+        DeploymentState,
+        DeploymentPhase,
+    )
 
     output.banner()
     project_path = path.resolve()
@@ -346,7 +448,9 @@ async def _deploy_async(
         deploy_state = state_manager.load()
         if deploy_state and deploy_state.is_failed:
             resume_from = deploy_state.current_phase
-            output.info(f"Resuming from: {resume_from.display_name if resume_from else 'unknown'}")
+            output.info(
+                f"Resuming from: {resume_from.display_name if resume_from else 'unknown'}"
+            )
 
     # Phase 1: Preflight checks
     if not skip_preflight and resume_from not in (
@@ -405,8 +509,10 @@ async def _deploy_async(
     state_manager.clear()  # Clear on success
 
     output.success_box("Deployment complete!", "Your infrastructure is now live.")
-    output.next_steps([
-        "Check status: [cyan]infera status[/cyan]",
-        "View logs: [cyan]gcloud run logs read[/cyan]",
-        "Destroy: [cyan]infera destroy[/cyan]",
-    ])
+    output.next_steps(
+        [
+            "Check status: [cyan]infera status[/cyan]",
+            "View logs: [cyan]gcloud run logs read[/cyan]",
+            "Destroy: [cyan]infera destroy[/cyan]",
+        ]
+    )

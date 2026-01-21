@@ -5,6 +5,11 @@ Handles AskUserQuestion tool calls and other user interactions.
 
 from typing import Any
 
+from claude_agent_sdk import (
+    HookContext,
+    HookInput,
+    HookJSONOutput,
+)
 from claude_agent_sdk.types import (
     PermissionResultAllow,
     PermissionResultDeny,
@@ -60,9 +65,13 @@ async def _handle_ask_user_question(
 
             # Show input hint
             if multi_select:
-                output.console.print("  [dim](Enter numbers separated by commas, or type your own answer)[/dim]")
+                output.console.print(
+                    "  [dim](Enter numbers separated by commas, or type your own answer)[/dim]"
+                )
             else:
-                output.console.print("  [dim](Enter a number, or type your own answer)[/dim]")
+                output.console.print(
+                    "  [dim](Enter a number, or type your own answer)[/dim]"
+                )
 
             # Collect response
             response = output.console.input("[bold]Your choice:[/bold] ").strip()
@@ -84,11 +93,7 @@ def _parse_response(response: str, options: list[dict[str, Any]]) -> str:
     try:
         # Try to parse as comma-separated numbers
         indices = [int(s.strip()) - 1 for s in response.split(",")]
-        labels = [
-            options[i].get("label", "")
-            for i in indices
-            if 0 <= i < len(options)
-        ]
+        labels = [options[i].get("label", "") for i in indices if 0 <= i < len(options)]
         if labels:
             return ", ".join(labels)
     except ValueError:
@@ -99,10 +104,10 @@ def _parse_response(response: str, options: list[dict[str, Any]]) -> str:
 
 
 async def keep_stream_open_hook(
-    input_data: dict[str, Any],
-    tool_use_id: str | None,
-    context: Any,
-) -> dict[str, Any]:
+    _input_data: HookInput,
+    _tool_use_id: str | None,
+    _context: HookContext,
+) -> HookJSONOutput:
     """Dummy hook that keeps the stream open for can_use_tool.
 
     Required workaround: In Python, can_use_tool requires streaming mode

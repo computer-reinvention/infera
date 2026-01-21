@@ -23,7 +23,10 @@ async def verify_auth(args: dict[str, Any]) -> dict[str, Any]:
     if provider == "gcp":
         try:
             proc = await asyncio.create_subprocess_exec(
-                "gcloud", "auth", "list", "--format=json",
+                "gcloud",
+                "auth",
+                "list",
+                "--format=json",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -31,7 +34,12 @@ async def verify_auth(args: dict[str, Any]) -> dict[str, Any]:
 
             if proc.returncode != 0:
                 return {
-                    "content": [{"type": "text", "text": "gcloud CLI not found or not authenticated"}],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "gcloud CLI not found or not authenticated",
+                        }
+                    ],
                     "is_error": True,
                 }
 
@@ -40,13 +48,21 @@ async def verify_auth(args: dict[str, Any]) -> dict[str, Any]:
 
             if not active:
                 return {
-                    "content": [{"type": "text", "text": "No active gcloud account. Run 'gcloud auth login'"}],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "No active gcloud account. Run 'gcloud auth login'",
+                        }
+                    ],
                     "is_error": True,
                 }
 
             # Get project
             proc2 = await asyncio.create_subprocess_exec(
-                "gcloud", "config", "get-value", "project",
+                "gcloud",
+                "config",
+                "get-value",
+                "project",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -54,10 +70,12 @@ async def verify_auth(args: dict[str, Any]) -> dict[str, Any]:
             project = stdout2.decode().strip()
 
             return {
-                "content": [{
-                    "type": "text",
-                    "text": f"Authenticated with GCP. Account: {active[0].get('account')}. Project: {project or 'not set'}",
-                }]
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Authenticated with GCP. Account: {active[0].get('account')}. Project: {project or 'not set'}",
+                    }
+                ]
             }
         except FileNotFoundError:
             return {
@@ -68,7 +86,9 @@ async def verify_auth(args: dict[str, Any]) -> dict[str, Any]:
     elif provider == "aws":
         try:
             proc = await asyncio.create_subprocess_exec(
-                "aws", "sts", "get-caller-identity",
+                "aws",
+                "sts",
+                "get-caller-identity",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -76,16 +96,23 @@ async def verify_auth(args: dict[str, Any]) -> dict[str, Any]:
 
             if proc.returncode != 0:
                 return {
-                    "content": [{"type": "text", "text": "AWS CLI not authenticated. Run 'aws configure'"}],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "AWS CLI not authenticated. Run 'aws configure'",
+                        }
+                    ],
                     "is_error": True,
                 }
 
             identity = json.loads(stdout.decode())
             return {
-                "content": [{
-                    "type": "text",
-                    "text": f"Authenticated with AWS. Account: {identity.get('Account')}",
-                }]
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Authenticated with AWS. Account: {identity.get('Account')}",
+                    }
+                ]
             }
         except FileNotFoundError:
             return {
@@ -95,6 +122,11 @@ async def verify_auth(args: dict[str, Any]) -> dict[str, Any]:
 
     else:
         return {
-            "content": [{"type": "text", "text": f"Provider '{provider}' not supported. Use: gcp, aws"}],
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"Provider '{provider}' not supported. Use: gcp, aws",
+                }
+            ],
             "is_error": True,
         }

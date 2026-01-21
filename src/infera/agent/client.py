@@ -55,7 +55,9 @@ class InferaAgent:
     # Public API
     # -------------------------------------------------------------------------
 
-    async def analyze_and_configure(self, non_interactive: bool = False) -> InferaConfig:
+    async def analyze_and_configure(
+        self, non_interactive: bool = False
+    ) -> InferaConfig:
         """Analyze codebase and generate infrastructure configuration.
 
         Prompt: prompts/analyze.md
@@ -218,7 +220,15 @@ class InferaAgent:
             can_use_tool=handle_tool_permission,
             hooks={
                 # keep_stream_open_hook is required for can_use_tool to work
-                "PreToolUse": [HookMatcher(hooks=[keep_stream_open_hook, verbose_pre_tool_hook, security_hook])],
+                "PreToolUse": [
+                    HookMatcher(
+                        hooks=[
+                            keep_stream_open_hook,
+                            verbose_pre_tool_hook,
+                            security_hook,
+                        ]
+                    )
+                ],
                 "PostToolUse": [HookMatcher(hooks=[logging_hook])],
             },
         )

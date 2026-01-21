@@ -40,7 +40,10 @@ class PreflightResult:
     @property
     def passed(self) -> bool:
         """Check if all critical checks passed."""
-        return all(c.status in (CheckStatus.PASSED, CheckStatus.WARNING, CheckStatus.SKIPPED) for c in self.checks)
+        return all(
+            c.status in (CheckStatus.PASSED, CheckStatus.WARNING, CheckStatus.SKIPPED)
+            for c in self.checks
+        )
 
     @property
     def has_warnings(self) -> bool:
@@ -146,7 +149,9 @@ class PreflightChecker:
     async def check_gcp_project(self) -> CheckResult:
         """Check if GCP project is configured."""
         try:
-            result = await self._run_command(["gcloud", "config", "get-value", "project"])
+            result = await self._run_command(
+                ["gcloud", "config", "get-value", "project"]
+            )
             project = result.strip()
             if project and project != "(unset)":
                 return CheckResult(
@@ -174,7 +179,9 @@ class PreflightChecker:
     async def check_gcp_billing(self) -> CheckResult:
         """Check if GCP billing is enabled."""
         try:
-            result = await self._run_command(["gcloud", "config", "get-value", "project"])
+            result = await self._run_command(
+                ["gcloud", "config", "get-value", "project"]
+            )
             project = result.strip()
             if not project or project == "(unset)":
                 return CheckResult(
@@ -185,7 +192,14 @@ class PreflightChecker:
 
             # Check billing
             billing_result = await self._run_command(
-                ["gcloud", "billing", "projects", "describe", project, "--format=value(billingEnabled)"],
+                [
+                    "gcloud",
+                    "billing",
+                    "projects",
+                    "describe",
+                    project,
+                    "--format=value(billingEnabled)",
+                ],
                 check=False,
             )
 
@@ -225,7 +239,13 @@ class PreflightChecker:
 
         try:
             result = await self._run_command(
-                ["gcloud", "services", "list", "--enabled", "--format=value(config.name)"]
+                [
+                    "gcloud",
+                    "services",
+                    "list",
+                    "--enabled",
+                    "--format=value(config.name)",
+                ]
             )
             enabled_apis = set(result.strip().split("\n"))
 
@@ -268,7 +288,9 @@ class PreflightChecker:
 
         # Try to get from config
         try:
-            result = await self._run_command(["aws", "configure", "get", "region"], check=False)
+            result = await self._run_command(
+                ["aws", "configure", "get", "region"], check=False
+            )
             region = result.strip()
             if region:
                 return CheckResult(
@@ -292,7 +314,9 @@ class PreflightChecker:
     async def check_aws_credentials(self) -> CheckResult:
         """Check if AWS credentials are valid."""
         try:
-            result = await self._run_command(["aws", "sts", "get-caller-identity", "--output", "json"])
+            result = await self._run_command(
+                ["aws", "sts", "get-caller-identity", "--output", "json"]
+            )
             import json
 
             identity = json.loads(result)
@@ -316,7 +340,9 @@ class PreflightChecker:
         """Check Cloudflare account configuration."""
         import os
 
-        if os.environ.get("CLOUDFLARE_API_TOKEN") or os.environ.get("CLOUDFLARE_ACCOUNT_ID"):
+        if os.environ.get("CLOUDFLARE_API_TOKEN") or os.environ.get(
+            "CLOUDFLARE_ACCOUNT_ID"
+        ):
             return CheckResult(
                 name="Cloudflare Account",
                 status=CheckStatus.PASSED,
@@ -352,7 +378,9 @@ class PreflightChecker:
                 name="Docker",
                 status=CheckStatus.WARNING,
                 message="Docker not installed (may be needed for container builds)",
-                fix_instructions=["Install Docker: https://docs.docker.com/get-docker/"],
+                fix_instructions=[
+                    "Install Docker: https://docs.docker.com/get-docker/"
+                ],
             )
 
     async def check_terraform_installed(self) -> CheckResult:
@@ -387,7 +415,9 @@ class PreflightChecker:
     async def _check_gcp_auth(self) -> CheckResult:
         """Check GCP authentication."""
         try:
-            result = await self._run_command(["gcloud", "auth", "list", "--format=value(account)"])
+            result = await self._run_command(
+                ["gcloud", "auth", "list", "--format=value(account)"]
+            )
             accounts = [a for a in result.strip().split("\n") if a]
             if accounts:
                 return CheckResult(
@@ -526,6 +556,8 @@ class PreflightChecker:
         stdout, stderr = await proc.communicate()
 
         if check and proc.returncode != 0:
-            raise subprocess.CalledProcessError(proc.returncode or 1, cmd, stdout, stderr)
+            raise subprocess.CalledProcessError(
+                proc.returncode or 1, cmd, stdout, stderr
+            )
 
         return stdout.decode("utf-8")

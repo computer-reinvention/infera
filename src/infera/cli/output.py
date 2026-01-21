@@ -1,7 +1,7 @@
 """CLI output formatting - create-react-app style."""
 
 from contextlib import contextmanager
-from typing import Generator
+from typing import Callable, Generator
 
 from rich.console import Console
 from rich.panel import Panel
@@ -95,11 +95,13 @@ def error(message: str) -> None:
 def success_box(title: str, message: str) -> None:
     """Show success in a panel."""
     console.print()
-    console.print(Panel(
-        f"[{SUCCESS}]{message}[/{SUCCESS}]",
-        title=f"[bold {SUCCESS}]{title}[/bold {SUCCESS}]",
-        border_style=SUCCESS,
-    ))
+    console.print(
+        Panel(
+            f"[{SUCCESS}]{message}[/{SUCCESS}]",
+            title=f"[bold {SUCCESS}]{title}[/bold {SUCCESS}]",
+            border_style=SUCCESS,
+        )
+    )
 
 
 def next_steps(steps: list[str]) -> None:
@@ -138,7 +140,7 @@ def resume_spinner() -> None:
 
 
 @contextmanager
-def progress_steps(steps: list[str]) -> Generator[callable, None, None]:
+def progress_steps(steps: list[str]) -> Generator[Callable[[], None], None, None]:
     """Context manager for multi-step progress."""
     progress = Progress(
         SpinnerColumn(),
@@ -160,15 +162,26 @@ def progress_steps(steps: list[str]) -> Generator[callable, None, None]:
             if current_step[0] < len(steps):
                 idx = current_step[0]
                 if success:
-                    progress.update(task_ids[idx], description=f"[{SUCCESS}]✓ {steps[idx]}[/{SUCCESS}]", completed=1)
+                    progress.update(
+                        task_ids[idx],
+                        description=f"[{SUCCESS}]✓ {steps[idx]}[/{SUCCESS}]",
+                        completed=1,
+                    )
                 else:
-                    progress.update(task_ids[idx], description=f"[{ERROR}]✗ {steps[idx]}[/{ERROR}]", completed=1)
+                    progress.update(
+                        task_ids[idx],
+                        description=f"[{ERROR}]✗ {steps[idx]}[/{ERROR}]",
+                        completed=1,
+                    )
                 current_step[0] += 1
 
                 # Start next step
                 if current_step[0] < len(steps):
                     next_idx = current_step[0]
-                    progress.update(task_ids[next_idx], description=f"[{BRAND}]→ {steps[next_idx]}[/{BRAND}]")
+                    progress.update(
+                        task_ids[next_idx],
+                        description=f"[{BRAND}]→ {steps[next_idx]}[/{BRAND}]",
+                    )
 
         # Mark first step as current
         if task_ids:
@@ -205,28 +218,32 @@ def display_config_summary(config: dict) -> None:
     lines.append(f"[bold]Region:[/bold] {config.get('region', 'unknown')}")
     lines.append(f"[bold]Type:[/bold] {config.get('architecture_type', 'unknown')}")
 
-    resources = config.get('resources', [])
+    resources = config.get("resources", [])
     if resources:
         lines.append(f"\n[bold]Resources ({len(resources)}):[/bold]")
         for r in resources:
             lines.append(f"  • {r.get('type', '?')}: {r.get('name', '?')}")
 
-    console.print(Panel(
-        "\n".join(lines),
-        title="[bold]Configuration[/bold]",
-        border_style=BRAND,
-    ))
+    console.print(
+        Panel(
+            "\n".join(lines),
+            title="[bold]Configuration[/bold]",
+            border_style=BRAND,
+        )
+    )
 
 
 def confirm(message: str, default: bool = False) -> bool:
     """Interactive confirmation prompt."""
     import typer
+
     return typer.confirm(f"\n{message}", default=default)
 
 
 def prompt(message: str, default: str = "") -> str:
     """Interactive text prompt."""
     import typer
+
     return typer.prompt(f"\n{message}", default=default)
 
 

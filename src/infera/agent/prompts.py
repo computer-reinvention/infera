@@ -45,7 +45,7 @@ PROVIDER_BACKEND = {
 
 def _resolve_includes(content: str, base_dir: Path, variables: dict[str, str]) -> str:
     """Resolve {include:path/to/file.md} directives in content."""
-    pattern = r'\{include:([^}]+)\}'
+    pattern = r"\{include:([^}]+)\}"
 
     def replace_include(match: re.Match) -> str:
         include_path = match.group(1)

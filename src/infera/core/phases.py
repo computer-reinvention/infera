@@ -52,7 +52,9 @@ class PhaseResult:
     details: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
 
-    def complete(self, status: str = "success", message: str = "", error: str | None = None) -> None:
+    def complete(
+        self, status: str = "success", message: str = "", error: str | None = None
+    ) -> None:
         """Mark phase as complete."""
         self.status = status
         self.message = message
@@ -88,7 +90,9 @@ class DeploymentState:
         self.phases.append(result)
         return result
 
-    def complete_phase(self, status: str = "success", message: str = "", error: str | None = None) -> None:
+    def complete_phase(
+        self, status: str = "success", message: str = "", error: str | None = None
+    ) -> None:
         """Complete the current phase."""
         if self.phases:
             self.phases[-1].complete(status, message, error)
@@ -156,13 +160,17 @@ class DeploymentState:
                     "status": p.status,
                     "message": p.message,
                     "started_at": p.started_at.isoformat(),
-                    "completed_at": p.completed_at.isoformat() if p.completed_at else None,
+                    "completed_at": (
+                        p.completed_at.isoformat() if p.completed_at else None
+                    ),
                     "error": p.error,
                 }
                 for p in self.phases
             ],
             "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
             "last_error": self.last_error,
             "retry_count": self.retry_count,
         }
@@ -175,7 +183,11 @@ class DeploymentState:
             provider=data["provider"],
             current_phase=DeploymentPhase(data["current_phase"]),
             started_at=datetime.fromisoformat(data["started_at"]),
-            completed_at=datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None,
+            completed_at=(
+                datetime.fromisoformat(data["completed_at"])
+                if data.get("completed_at")
+                else None
+            ),
             last_error=data.get("last_error"),
             retry_count=data.get("retry_count", 0),
         )
@@ -186,7 +198,11 @@ class DeploymentState:
                 status=p["status"],
                 message=p.get("message", ""),
                 started_at=datetime.fromisoformat(p["started_at"]),
-                completed_at=datetime.fromisoformat(p["completed_at"]) if p.get("completed_at") else None,
+                completed_at=(
+                    datetime.fromisoformat(p["completed_at"])
+                    if p.get("completed_at")
+                    else None
+                ),
                 error=p.get("error"),
             )
             state.phases.append(result)

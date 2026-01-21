@@ -1,17 +1,19 @@
 """Agent hooks for security and logging."""
 
-from typing import Any
-
-from claude_agent_sdk import HookContext
+from claude_agent_sdk import (
+    HookContext,
+    HookInput,
+    HookJSONOutput,
+)
 
 from infera.cli import output
 
 
 async def verbose_pre_tool_hook(
-    input_data: dict[str, Any],
-    tool_use_id: str | None,
-    context: HookContext,
-) -> dict[str, Any]:
+    input_data: HookInput,
+    _tool_use_id: str | None,
+    _context: HookContext,
+) -> HookJSONOutput:
     """Log tool invocations in verbose mode."""
     if not output.is_verbose():
         return {}
@@ -56,10 +58,10 @@ async def verbose_pre_tool_hook(
 
 
 async def security_hook(
-    input_data: dict[str, Any],
-    tool_use_id: str | None,
-    context: HookContext,
-) -> dict[str, Any]:
+    input_data: HookInput,
+    _tool_use_id: str | None,
+    _context: HookContext,
+) -> HookJSONOutput:
     """Block dangerous operations."""
     tool_name = input_data.get("tool_name", "")
 
@@ -95,13 +97,13 @@ async def security_hook(
 
 
 async def logging_hook(
-    input_data: dict[str, Any],
-    tool_use_id: str | None,
-    context: HookContext,
-) -> dict[str, Any]:
+    _input_data: HookInput,
+    _tool_use_id: str | None,
+    _context: HookContext,
+) -> HookJSONOutput:
     """Log all tool usage for audit trail."""
-    tool_name = input_data.get("tool_name", "")
-    tool_input = input_data.get("tool_input", {})
+    # tool_name = _input_data.get("tool_name", "")
+    # tool_input = _input_data.get("tool_input", {})
 
     # In a real implementation, this would write to .infera/audit.log
     # For now, we just return empty dict (no-op)
