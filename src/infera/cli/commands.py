@@ -8,13 +8,46 @@ import typer
 from infera.cli import output
 from infera.core.state import StateManager
 from infera.core.exceptions import InferaError
-from infera.core.auth import ensure_api_key
 
 
-def _require_api_key() -> None:
-    """Ensure API key is available, exit if not."""
-    if not ensure_api_key():
-        raise typer.Exit(1)
+def _require_setup(provider: str | None = None) -> str:
+    """Ensure onboarding is complete, running it if necessary.
+
+    Args:
+        provider: Provider to use. If None, uses default from config.
+
+    Returns:
+        The provider to use.
+
+    Raises:
+        typer.Exit: If setup fails or is cancelled.
+    """
+    from infera.core.onboarding import is_onboarding_complete, run_onboarding, get_default_provider
+
+    # If provider specified, just ensure API key exists
+    if provider:
+        from infera.core.auth import ensure_api_key
+        if not ensure_api_key():
+            raise typer.Exit(1)
+        return provider
+
+    # Check if onboarding is complete
+    if not is_onboarding_complete():
+        # Run full onboarding
+        result = asyncio.run(run_onboarding())
+        if result is None or not result.passed:
+            output.error("Setup incomplete. Please fix the issues above and try again.")
+            raise typer.Exit(1)
+        return result.provider
+
+    # Return default provider
+    default_provider = get_default_provider()
+    if default_provider:
+        return default_provider
+
+    # Fallback - shouldn't happen if is_onboarding_complete is True
+    output.error("No default provider configured. Run: infera setup")
+    raise typer.Exit(1)
 
 
 def init_cmd(
@@ -25,11 +58,11 @@ def init_cmd(
         dir_okay=True,
         file_okay=False,
     ),
-    provider: str = typer.Option(
-        "gcp",
+    provider: str | None = typer.Option(
+        None,
         "--provider",
         "-p",
-        help="Cloud provider (gcp, aws, azure, cloudflare).",
+        help="Cloud provider (gcp, aws, azure, cloudflare). Uses default if not specified.",
     ),
     non_interactive: bool = typer.Option(
         False,
@@ -46,9 +79,9 @@ def init_cmd(
 ) -> None:
     """Analyze codebase and create infrastructure config."""
     output.set_verbose(verbose)
-    _require_api_key()
+    resolved_provider = _require_setup(provider)
     try:
-        asyncio.run(_init_async(path, provider, non_interactive))
+        asyncio.run(_init_async(path, resolved_provider, non_interactive))
     except InferaError as e:
         output.error(str(e))
         raise typer.Exit(1)
@@ -104,7 +137,7 @@ def plan_cmd(
 ) -> None:
     """Generate Terraform files and run terraform plan."""
     output.set_verbose(verbose)
-    _require_api_key()
+    _require_setup()  # Ensure onboarding complete, provider from project config
     try:
         asyncio.run(_plan_async(quiet))
     except InferaError as e:
@@ -153,7 +186,7 @@ def apply_cmd(
 ) -> None:
     """Run terraform apply to provision infrastructure."""
     output.set_verbose(verbose)
-    _require_api_key()
+    _require_setup()  # Ensure onboarding complete
     try:
         asyncio.run(_apply_async(auto_approve, dry_run))
     except InferaError as e:
@@ -220,7 +253,7 @@ def destroy_cmd(
 ) -> None:
     """Run terraform destroy to remove infrastructure."""
     output.set_verbose(verbose)
-    _require_api_key()
+    _require_setup()  # Ensure onboarding complete
     try:
         asyncio.run(_destroy_async(auto_approve))
     except InferaError as e:
@@ -297,63 +330,130 @@ def status_cmd(
         )
 
 
-def auth_cmd(
-    status: bool = typer.Option(
-        False, "--status", "-s", help="Show current auth status."
+def config_cmd(
+    show: bool = typer.Option(
+        False,
+        "--show",
+        "-s",
+        help="Show current configuration.",
     ),
-    update: bool = typer.Option(False, "--update", "-u", help="Update API key."),
+    provider: str | None = typer.Option(
+        None,
+        "--provider",
+        "-p",
+        help="Set default provider (gcp, aws, azure, cloudflare).",
+    ),
+    api_key: bool = typer.Option(
+        False,
+        "--api-key",
+        help="Update Anthropic API key.",
+    ),
+    check: bool = typer.Option(
+        False,
+        "--check",
+        "-c",
+        help="Run provider authentication and permission checks.",
+    ),
 ) -> None:
-    """Manage Anthropic API key authentication."""
-    from infera.core.auth import (
-        get_api_key,
-        save_api_key,
-        is_valid_api_key,
-        CREDENTIALS_FILE,
-    )
+    """View or update Infera configuration.
 
-    if status or (not status and not update):
-        # Show current status
-        key = get_api_key()
-        if key:
-            # Mask the key for display
-            masked = key[:10] + "..." + key[-4:] if len(key) > 14 else "***"
-            output.step_done(f"API key configured: {masked}")
-            output.info(f"Credentials file: {CREDENTIALS_FILE}")
-        else:
-            output.warn("No API key configured")
-            output.next_steps(
-                [
-                    "Set key: [cyan]infera auth --update[/cyan]",
-                    "Or set environment variable: [cyan]export ANTHROPIC_API_KEY=sk-ant-...[/cyan]",
-                ]
-            )
+    Examples:
+        infera config                  # Show current config
+        infera config -p gcp           # Set default provider to GCP
+        infera config --api-key        # Update API key
+        infera config --check          # Verify provider setup
+    """
+    from infera.core.onboarding import (
+        get_default_provider,
+        set_default_provider,
+        PROVIDER_NAMES,
+        ProviderOnboardingChecker,
+        _display_check_results,
+    )
+    from infera.core.auth import get_api_key, save_api_key, is_valid_api_key, CREDENTIALS_FILE
+
+    # If setting provider
+    if provider:
+        if provider not in ("gcp", "aws", "azure", "cloudflare"):
+            output.error(f"Invalid provider: {provider}. Must be gcp, aws, azure, or cloudflare.")
+            raise typer.Exit(1)
+        set_default_provider(provider)  # type: ignore
+        output.step_done(f"Default provider set to {PROVIDER_NAMES.get(provider, provider)}")
         return
 
-    if update:
-        # Update API key
+    # If updating API key
+    if api_key:
         output.console.print()
         output.console.print(
             "Get your API key at: [link=https://console.anthropic.com/settings/keys]https://console.anthropic.com/settings/keys[/link]"
         )
         output.console.print()
 
-        key = output.console.input(
-            "[bold]Enter your Anthropic API key:[/bold] "
-        ).strip()
+        key = output.console.input("[bold]Enter your Anthropic API key:[/bold] ").strip()
 
         if not key:
             output.error("No API key provided.")
             raise typer.Exit(1)
 
         if not is_valid_api_key(key):
-            output.warn(
-                "This doesn't look like a valid Anthropic API key (should start with 'sk-ant-')."
-            )
+            output.warn("This doesn't look like a valid Anthropic API key (should start with 'sk-ant-').")
             if not output.confirm("Save anyway?", default=False):
                 raise typer.Exit(1)
 
         save_api_key(key)
         output.step_done(f"API key saved to {CREDENTIALS_FILE}")
+        return
+
+    # If running checks
+    if check:
+        current_provider = get_default_provider()
+        if not current_provider:
+            output.error("No default provider configured. Set one with: infera config -p <provider>")
+            raise typer.Exit(1)
+
+        output.step_start(f"Checking {PROVIDER_NAMES.get(current_provider, current_provider)} setup...")
+        checker = ProviderOnboardingChecker(current_provider)
+        result = asyncio.run(checker.run_all())
+        _display_check_results(result)
+
+        if not result.passed:
+            raise typer.Exit(1)
+        return
+
+    # Default: show current config
+    output.console.print()
+    output.console.print("[bold]Infera Configuration[/bold]")
+    output.console.print()
+
+    # API Key
+    key = get_api_key()
+    if key:
+        masked = key[:10] + "..." + key[-4:] if len(key) > 14 else "***"
+        output.console.print(f"  [cyan]API Key:[/cyan]  {masked}")
+    else:
+        output.console.print(f"  [cyan]API Key:[/cyan]  [dim]not set[/dim]")
+
+    # Provider
+    current_provider = get_default_provider()
+    if current_provider:
+        output.console.print(f"  [cyan]Provider:[/cyan] {PROVIDER_NAMES.get(current_provider, current_provider)}")
+    else:
+        output.console.print(f"  [cyan]Provider:[/cyan] [dim]not set[/dim]")
+
+    # Config file locations
+    output.console.print()
+    output.console.print("[dim]Config files:[/dim]")
+    output.console.print(f"  [dim]~/.infera/credentials[/dim]")
+    output.console.print(f"  [dim]~/.infera/config.json[/dim]")
+    output.console.print()
+
+    # Hints if not configured
+    if not key or not current_provider:
+        output.console.print("[bold]To configure:[/bold]")
+        if not key:
+            output.console.print("  infera config --api-key")
+        if not current_provider:
+            output.console.print("  infera config -p <gcp|aws|azure|cloudflare>")
 
 
 def deploy_cmd(
@@ -364,11 +464,11 @@ def deploy_cmd(
         dir_okay=True,
         file_okay=False,
     ),
-    provider: str = typer.Option(
-        "gcp",
+    provider: str | None = typer.Option(
+        None,
         "--provider",
         "-p",
-        help="Cloud provider (gcp, aws, azure, cloudflare).",
+        help="Cloud provider (gcp, aws, azure, cloudflare). Uses default if not specified.",
     ),
     non_interactive: bool = typer.Option(
         False,
@@ -400,12 +500,12 @@ def deploy_cmd(
 ) -> None:
     """Full deployment workflow: analyze, plan, and deploy in one command."""
     output.set_verbose(verbose)
-    _require_api_key()
+    resolved_provider = _require_setup(provider)
     try:
         asyncio.run(
             _deploy_async(
                 path,
-                provider,
+                resolved_provider,
                 non_interactive,
                 auto_approve,
                 skip_preflight,

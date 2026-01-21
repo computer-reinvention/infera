@@ -13,7 +13,7 @@ from infera.cli.commands import (
     destroy_cmd,
     status_cmd,
     deploy_cmd,
-    auth_cmd,
+    config_cmd,
 )
 
 app = typer.Typer(
@@ -66,7 +66,7 @@ app.command(name="apply")(apply_cmd)
 app.command(name="destroy")(destroy_cmd)
 app.command(name="status")(status_cmd)
 app.command(name="deploy")(deploy_cmd)
-app.command(name="auth")(auth_cmd)
+app.command(name="config")(config_cmd)
 
 
 if __name__ == "__main__":
