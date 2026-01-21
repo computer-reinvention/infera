@@ -119,6 +119,41 @@ class InferaAgent:
         )
         await self._run_agent(prompt)
 
+    async def deploy_full_workflow(
+        self,
+        non_interactive: bool = False,
+        auto_approve: bool = False,
+        skip_preflight: bool = False,
+        resume_from: str | None = None,
+    ) -> None:
+        """Run the full deployment workflow: analyze, plan, and apply.
+
+        Uses prompts/deploy/_base.md for the complete workflow.
+
+        Args:
+            non_interactive: Skip user prompts, use defaults
+            auto_approve: Skip apply confirmation
+            skip_preflight: Skip preflight checks (already done by CLI)
+            resume_from: Phase to resume from (if resuming failed deployment)
+        """
+        tf_dir = self.project_root / ".infera" / "terraform"
+        tf_dir.mkdir(parents=True, exist_ok=True)
+
+        mode = "non-interactive" if non_interactive else "interactive"
+
+        prompt = prompts.build_full_prompt(
+            task_name="deploy",
+            templates_dir=self.templates_dir,
+            project_root=self.project_root,
+            provider=self.provider,
+            tf_dir=tf_dir,
+            mode=mode,
+            skip_preflight="true" if skip_preflight else "false",
+            auto_approve="true" if auto_approve else "false",
+            resume_from=resume_from or "none",
+        )
+        await self._run_agent(prompt)
+
     # -------------------------------------------------------------------------
     # Internal helpers
     # -------------------------------------------------------------------------

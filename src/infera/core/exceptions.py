@@ -11,3 +11,15 @@ class ConfigurationError(InferaError):
     """Error in configuration."""
 
     pass
+
+
+class PreflightError(InferaError):
+    """Error during preflight checks."""
+
+    pass
+
+
+class DeploymentError(InferaError):
+    """Error during deployment."""
+
+    pass

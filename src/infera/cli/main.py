@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 
 from infera import __version__
-from infera.cli.commands import init_cmd, plan_cmd, apply_cmd, destroy_cmd, status_cmd
+from infera.cli.commands import init_cmd, plan_cmd, apply_cmd, destroy_cmd, status_cmd, deploy_cmd
 
 app = typer.Typer(
     name="infera",
@@ -57,6 +57,7 @@ app.command(name="plan")(plan_cmd)
 app.command(name="apply")(apply_cmd)
 app.command(name="destroy")(destroy_cmd)
 app.command(name="status")(status_cmd)
+app.command(name="deploy")(deploy_cmd)
 
 
 if __name__ == "__main__":

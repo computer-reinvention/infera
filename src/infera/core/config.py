@@ -36,7 +36,7 @@ class InferaConfig(BaseModel):
     project_id: str | None = None  # Cloud provider project ID (GCP), account_id (Cloudflare)
 
     # Detected from codebase
-    detected_frameworks: list[str] = Field(default_factory=list)
+    detected_frameworks: list[dict] = Field(default_factory=list[dict])
     has_dockerfile: bool = False
     entry_point: str | None = None
 

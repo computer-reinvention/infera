@@ -259,3 +259,154 @@ def status_cmd(
             "Generate plan: [cyan]infera plan[/cyan]",
             "Apply: [cyan]infera apply[/cyan]",
         ])
+
+
+def deploy_cmd(
+    path: Path = typer.Argument(
+        Path("."),
+        help="Project path to deploy.",
+        exists=True,
+        dir_okay=True,
+        file_okay=False,
+    ),
+    provider: str = typer.Option(
+        "gcp",
+        "--provider",
+        "-p",
+        help="Cloud provider (gcp, aws, azure, cloudflare).",
+    ),
+    non_interactive: bool = typer.Option(
+        False,
+        "--non-interactive",
+        "-y",
+        help="Skip prompts, use defaults.",
+    ),
+    auto_approve: bool = typer.Option(
+        False,
+        "--auto-approve",
+        help="Skip apply confirmation.",
+    ),
+    skip_preflight: bool = typer.Option(
+        False,
+        "--skip-preflight",
+        help="Skip preflight checks.",
+    ),
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help="Resume from last checkpoint.",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose output.",
+    ),
+) -> None:
+    """Full deployment workflow: analyze, plan, and deploy in one command."""
+    output.set_verbose(verbose)
+    try:
+        asyncio.run(_deploy_async(
+            path,
+            provider,
+            non_interactive,
+            auto_approve,
+            skip_preflight,
+            resume,
+        ))
+    except InferaError as e:
+        output.error(str(e))
+        raise typer.Exit(1)
+    except KeyboardInterrupt:
+        output.warn("Cancelled")
+        raise typer.Exit(130)
+
+
+async def _deploy_async(
+    path: Path,
+    provider: str,
+    non_interactive: bool,
+    auto_approve: bool,
+    skip_preflight: bool,
+    resume: bool,
+) -> None:
+    from infera.agent import InferaAgent
+    from infera.core.preflight import PreflightChecker, CheckStatus
+    from infera.core.phases import DeploymentStateManager, DeploymentState, DeploymentPhase
+
+    output.banner()
+    project_path = path.resolve()
+
+    # Check for resume state
+    state_manager = DeploymentStateManager(project_path)
+    deploy_state: DeploymentState | None = None
+    resume_from: DeploymentPhase | None = None
+
+    if resume and state_manager.has_state():
+        deploy_state = state_manager.load()
+        if deploy_state and deploy_state.is_failed:
+            resume_from = deploy_state.current_phase
+            output.info(f"Resuming from: {resume_from.display_name if resume_from else 'unknown'}")
+
+    # Phase 1: Preflight checks
+    if not skip_preflight and resume_from not in (
+        DeploymentPhase.ANALYSIS,
+        DeploymentPhase.PLANNING,
+        DeploymentPhase.APPLY,
+    ):
+        output.step_start("Running preflight checks...")
+
+        checker = PreflightChecker(provider)  # type: ignore
+        preflight_result = await checker.run_all()
+
+        # Display results
+        for check in preflight_result.checks:
+            if check.status == CheckStatus.PASSED:
+                output.step_done(f"{check.name}: {check.message}")
+            elif check.status == CheckStatus.WARNING:
+                output.warn(f"{check.name}: {check.message}")
+            elif check.status == CheckStatus.FAILED:
+                output.error(f"{check.name}: {check.message}")
+                if check.fix_instructions:
+                    output.info("Fix:")
+                    for instruction in check.fix_instructions:
+                        output.console.print(f"  → {instruction}")
+
+        if not preflight_result.passed:
+            output.error("Preflight checks failed. Fix the issues above and try again.")
+            raise typer.Exit(1)
+
+        output.step_done("Preflight checks passed")
+
+    # Initialize or resume deployment state
+    if not deploy_state:
+        deploy_state = DeploymentState(
+            project_name=project_path.name,
+            provider=provider,
+        )
+
+    # Run the full deployment workflow via agent
+    output.step_start("Starting deployment workflow...")
+
+    agent = InferaAgent(project_root=project_path, provider=provider)
+
+    with output.spinner("AI is analyzing and deploying your project"):
+        await agent.deploy_full_workflow(
+            non_interactive=non_interactive,
+            auto_approve=auto_approve,
+            skip_preflight=skip_preflight,
+            resume_from=resume_from.value if resume_from else None,
+        )
+
+    # Save final state
+    if deploy_state:
+        deploy_state.complete()
+        state_manager.save(deploy_state)
+    state_manager.clear()  # Clear on success
+
+    output.success_box("Deployment complete!", "Your infrastructure is now live.")
+    output.next_steps([
+        "Check status: [cyan]infera status[/cyan]",
+        "View logs: [cyan]gcloud run logs read[/cyan]",
+        "Destroy: [cyan]infera destroy[/cyan]",
+    ])
