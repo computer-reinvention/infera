@@ -31,9 +31,9 @@ class InferaConfig(BaseModel):
 
     version: str = "1.0"
     project_name: str
-    provider: Literal["gcp", "aws", "azure"]
-    region: str
-    project_id: str | None = None  # Cloud provider project ID
+    provider: Literal["gcp", "aws", "azure", "cloudflare"]
+    region: str | None = None  # Region (not used for Cloudflare - global edge)
+    project_id: str | None = None  # Cloud provider project ID (GCP), account_id (Cloudflare)
 
     # Detected from codebase
     detected_frameworks: list[str] = Field(default_factory=list)

@@ -9,6 +9,9 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 console = Console()
 
+# Active spinner reference (for pausing during user input)
+_active_spinner = None
+
 # Brand colors
 BRAND = "cyan"
 SUCCESS = "green"
@@ -110,8 +113,28 @@ def next_steps(steps: list[str]) -> None:
 @contextmanager
 def spinner(message: str) -> Generator[None, None, None]:
     """Context manager for spinner during async operations."""
-    with console.status(f"[{BRAND}]{message}[/{BRAND}]", spinner="dots"):
-        yield
+    global _active_spinner
+    status = console.status(f"[{BRAND}]{message}[/{BRAND}]", spinner="dots")
+    _active_spinner = status
+    try:
+        with status:
+            yield
+    finally:
+        _active_spinner = None
+
+
+def pause_spinner() -> None:
+    """Pause the active spinner to allow user input."""
+    global _active_spinner
+    if _active_spinner is not None:
+        _active_spinner.stop()
+
+
+def resume_spinner() -> None:
+    """Resume the paused spinner."""
+    global _active_spinner
+    if _active_spinner is not None:
+        _active_spinner.start()
 
 
 @contextmanager

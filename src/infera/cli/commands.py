@@ -22,7 +22,7 @@ def init_cmd(
         "gcp",
         "--provider",
         "-p",
-        help="Cloud provider (gcp, aws, azure).",
+        help="Cloud provider (gcp, aws, azure, cloudflare).",
     ),
     non_interactive: bool = typer.Option(
         False,
@@ -115,32 +115,20 @@ async def _plan_async(quiet: bool) -> None:
     agent = InferaAgent(project_root=Path.cwd(), provider=config.provider)
 
     output.step_start("Generating Terraform configuration...")
-    with output.spinner("AI is writing Terraform files"):
+    with output.spinner("AI is generating and planning infrastructure"):
         await agent.generate_terraform_and_plan()
-
-    output.step_done("Terraform generated")
-
-    # Show terraform plan output if exists
-    plan_output_file = state.infera_dir / "terraform" / "plan_output.txt"
-    if plan_output_file.exists() and not quiet:
-        output.console.print("\n[bold]Terraform Plan:[/bold]")
-        output.console.print(f"[dim]{plan_output_file.read_text()[:2000]}[/dim]")
-
-    output.success_box("Plan Ready", "Run 'infera apply' to deploy")
-    output.next_steps([
-        "Review Terraform: [cyan]cat .infera/terraform/main.tf[/cyan]",
-        "Apply changes: [cyan]infera apply[/cyan]",
-    ])
+    # Agent handles success/error messaging and suggests fixes for any issues
 
 
 def apply_cmd(
     auto_approve: bool = typer.Option(False, "--auto-approve", "-y", help="Skip confirmation."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying (runs terraform plan)."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
 ) -> None:
     """Run terraform apply to provision infrastructure."""
     output.set_verbose(verbose)
     try:
-        asyncio.run(_apply_async(auto_approve))
+        asyncio.run(_apply_async(auto_approve, dry_run))
     except InferaError as e:
         output.error(str(e))
         raise typer.Exit(1)
@@ -149,7 +137,7 @@ def apply_cmd(
         raise typer.Exit(130)
 
 
-async def _apply_async(auto_approve: bool) -> None:
+async def _apply_async(auto_approve: bool, dry_run: bool = False) -> None:
     from infera.agent import InferaAgent
 
     output.banner()
@@ -162,29 +150,37 @@ async def _apply_async(auto_approve: bool) -> None:
         raise typer.Exit(1)
 
     tf_dir = state.infera_dir / "terraform"
-    if not (tf_dir / "main.tf").exists():
-        output.error("No Terraform files. Run [cyan]infera plan[/cyan] first.")
-        raise typer.Exit(1)
+    # For Cloudflare, check for wrangler.toml instead of main.tf
+    if config.provider == "cloudflare":
+        if not (Path.cwd() / "wrangler.toml").exists():
+            output.error("No wrangler.toml. Run [cyan]infera plan[/cyan] first.")
+            raise typer.Exit(1)
+    else:
+        if not (tf_dir / "main.tf").exists():
+            output.error("No Terraform files. Run [cyan]infera plan[/cyan] first.")
+            raise typer.Exit(1)
 
-    output.step_start(f"Applying [cyan]{config.project_name}[/cyan]")
+    if dry_run:
+        output.step_start(f"Dry run for [cyan]{config.project_name}[/cyan]")
+    else:
+        output.step_start(f"Applying [cyan]{config.project_name}[/cyan]")
     output.info(f"Resources: {len(config.resources)}")
 
-    if not auto_approve:
+    if not dry_run and not auto_approve:
         if not output.confirm("Apply infrastructure changes?", default=False):
             output.warn("Cancelled")
             raise typer.Exit(0)
 
     agent = InferaAgent(project_root=Path.cwd(), provider=config.provider)
 
-    with output.spinner("Running terraform apply"):
-        await agent.apply_terraform()
-
-    output.step_done("Apply complete")
-    output.success_box("Deployed!", "Infrastructure is live")
-    output.next_steps([
-        "Check outputs: [cyan]terraform -chdir=.infera/terraform output[/cyan]",
-        "Destroy: [cyan]infera destroy[/cyan]",
-    ])
+    if dry_run:
+        with output.spinner("Running terraform plan (dry run)"):
+            await agent.apply_terraform(dry_run=True)
+        # Agent handles success/error messaging and suggests fixes
+    else:
+        with output.spinner("Running terraform apply"):
+            await agent.apply_terraform()
+        # Agent handles success/error messaging and suggests fixes
 
 
 def destroy_cmd(
@@ -230,9 +226,7 @@ async def _destroy_async(auto_approve: bool) -> None:
 
     with output.spinner("Running terraform destroy"):
         await agent.destroy_terraform()
-
-    output.step_done("Destroy complete")
-    output.success_box("Destroyed", "All resources removed")
+    # Agent handles success/error messaging and suggests fixes for any issues
 
 
 def status_cmd(

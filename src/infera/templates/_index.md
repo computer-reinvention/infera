@@ -1,8 +1,37 @@
 # Template Selection Guide
 
-Use this guide to select the appropriate infrastructure template based on codebase analysis.
+Use this guide to select the appropriate infrastructure template based on codebase analysis and chosen provider.
+
+## Step 0: Provider Selection
+
+**Which provider is selected?**
+
+| Provider | Best For | Templates |
+|----------|----------|-----------|
+| `gcp` | Full-featured cloud, containers, databases | `static_site.md`, `api_service.md`, `fullstack_app.md`, `containerized.md` |
+| `cloudflare` | Edge computing, static sites, simple APIs | `cloudflare_pages.md`, `cloudflare_worker.md` |
 
 ## Decision Tree
+
+### For Cloudflare Provider
+
+```
+Is there a wrangler.toml or worker code?
+├── Yes → Use `cloudflare_worker.md`
+└── No → Is it a static site/SPA?
+    ├── Yes → Use `cloudflare_pages.md`
+    └── No → Is it a simple API?
+        ├── Yes → Use `cloudflare_worker.md`
+        └── No (complex app) → Suggest GCP instead
+```
+
+**Cloudflare Limitations:**
+- No containers (use GCP for Docker apps)
+- No traditional databases (D1/KV only)
+- 10ms CPU limit per request (50ms on paid)
+- Best for: static sites, edge APIs, simple functions
+
+### For GCP Provider
 
 ### Step 1: Check for Containerization
 
@@ -41,6 +70,8 @@ If database is needed, add database resources from the appropriate template.
 
 ## Template Combinations
 
+### GCP Templates
+
 | Codebase Type | Primary Template | Additional Resources |
 |---------------|------------------|---------------------|
 | React/Vue SPA | `static_site.md` | None |
@@ -49,6 +80,16 @@ If database is needed, add database resources from the appropriate template.
 | Express API | `api_service.md` | Cloud SQL if DB detected |
 | Docker + PostgreSQL | `containerized.md` | Cloud SQL |
 | Simple HTML/CSS/JS | `static_site.md` | None |
+
+### Cloudflare Templates
+
+| Codebase Type | Primary Template | Additional Resources |
+|---------------|------------------|---------------------|
+| React/Vue SPA | `cloudflare_pages.md` | None |
+| Static site (Hugo, Astro) | `cloudflare_pages.md` | None |
+| Simple API/functions | `cloudflare_worker.md` | KV if caching needed |
+| Edge API with storage | `cloudflare_worker.md` | D1 or KV |
+| Existing wrangler project | `cloudflare_worker.md` | Per wrangler.toml |
 
 ## Detection Signals Reference
 
@@ -79,6 +120,16 @@ If database is needed, add database resources from the appropriate template.
 | Docker | Dockerfile | `FROM ` |
 | Docker Compose | docker-compose.yml | `services:` |
 | Kubernetes | k8s/, *.yaml | `kind: Deployment` |
+
+### Cloudflare-Specific
+
+| Signal | Files | Patterns |
+|--------|-------|----------|
+| Wrangler Config | wrangler.toml, wrangler.jsonc | `name =`, `main =` |
+| Worker Code | src/index.js, src/index.ts | `export default {`, `fetch(request` |
+| Pages Functions | functions/ | `onRequest` |
+| KV Usage | wrangler.toml | `[[kv_namespaces]]` |
+| D1 Usage | wrangler.toml | `[[d1_databases]]` |
 
 ## Cost Optimization Tips
 
