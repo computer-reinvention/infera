@@ -41,6 +41,7 @@ PROVIDER_DOCS = {
 
 class CheckStatus(Enum):
     """Status of an onboarding check."""
+
     PASSED = "passed"
     FAILED = "failed"
     WARNING = "warning"
@@ -51,6 +52,7 @@ class CheckStatus(Enum):
 @dataclass
 class CheckResult:
     """Result of a single onboarding check."""
+
     name: str
     status: CheckStatus
     message: str
@@ -61,6 +63,7 @@ class CheckResult:
 @dataclass
 class OnboardingResult:
     """Result of the full onboarding process."""
+
     provider: str  # One of: gcp, aws, azure, cloudflare
     checks: list[CheckResult]
 
@@ -68,7 +71,13 @@ class OnboardingResult:
     def passed(self) -> bool:
         """Check if all critical checks passed."""
         return all(
-            c.status in (CheckStatus.PASSED, CheckStatus.WARNING, CheckStatus.SKIPPED, CheckStatus.FIXED)
+            c.status
+            in (
+                CheckStatus.PASSED,
+                CheckStatus.WARNING,
+                CheckStatus.SKIPPED,
+                CheckStatus.FIXED,
+            )
             for c in self.checks
         )
 
@@ -321,7 +330,11 @@ class ProviderOnboardingChecker:
         """Check GCP authentication."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)",
+                "gcloud",
+                "auth",
+                "list",
+                "--filter=status:ACTIVE",
+                "--format=value(account)",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -351,7 +364,9 @@ class ProviderOnboardingChecker:
         """Check AWS authentication."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "aws", "sts", "get-caller-identity",
+                "aws",
+                "sts",
+                "get-caller-identity",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -387,7 +402,9 @@ class ProviderOnboardingChecker:
         """Check Azure authentication."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "az", "account", "show",
+                "az",
+                "account",
+                "show",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -420,7 +437,9 @@ class ProviderOnboardingChecker:
         """Check Cloudflare authentication."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "npx", "wrangler", "whoami",
+                "npx",
+                "wrangler",
+                "whoami",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -480,7 +499,10 @@ class ProviderOnboardingChecker:
         """Check GCP project configuration."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "gcloud", "config", "get", "project",
+                "gcloud",
+                "config",
+                "get",
+                "project",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -514,7 +536,10 @@ class ProviderOnboardingChecker:
         if not region:
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    "aws", "configure", "get", "region",
+                    "aws",
+                    "configure",
+                    "get",
+                    "region",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -545,7 +570,13 @@ class ProviderOnboardingChecker:
         """Check Azure subscription configuration."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "az", "account", "show", "--query", "name", "-o", "tsv",
+                "az",
+                "account",
+                "show",
+                "--query",
+                "name",
+                "-o",
+                "tsv",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -585,7 +616,10 @@ class ProviderOnboardingChecker:
         # Get current project
         try:
             proc = await asyncio.create_subprocess_exec(
-                "gcloud", "config", "get", "project",
+                "gcloud",
+                "config",
+                "get",
+                "project",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -605,7 +639,10 @@ class ProviderOnboardingChecker:
         # This is a simplified check - in production you'd check specific permissions
         try:
             proc = await asyncio.create_subprocess_exec(
-                "gcloud", "projects", "get-iam-policy", project,
+                "gcloud",
+                "projects",
+                "get-iam-policy",
+                project,
                 "--format=json",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -644,7 +681,9 @@ class ProviderOnboardingChecker:
         # Check if user can perform basic operations
         try:
             proc = await asyncio.create_subprocess_exec(
-                "aws", "iam", "get-user",
+                "aws",
+                "iam",
+                "get-user",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -690,7 +729,10 @@ class ProviderOnboardingChecker:
         """Check if billing is enabled for the GCP project."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "gcloud", "config", "get", "project",
+                "gcloud",
+                "config",
+                "get",
+                "project",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -708,7 +750,12 @@ class ProviderOnboardingChecker:
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                "gcloud", "beta", "billing", "projects", "describe", project,
+                "gcloud",
+                "beta",
+                "billing",
+                "projects",
+                "describe",
+                project,
                 "--format=value(billingEnabled)",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -789,7 +836,14 @@ async def check_gcp_api_enabled(api: str, project: str | None = None) -> bool:
     Returns:
         True if enabled, False otherwise.
     """
-    cmd = ["gcloud", "services", "list", "--enabled", f"--filter=config.name:{api}", "--format=value(config.name)"]
+    cmd = [
+        "gcloud",
+        "services",
+        "list",
+        "--enabled",
+        f"--filter=config.name:{api}",
+        "--format=value(config.name)",
+    ]
     if project:
         cmd.extend(["--project", project])
 
@@ -807,12 +861,12 @@ async def check_gcp_api_enabled(api: str, project: str | None = None) -> bool:
 
 # Common GCP APIs needed for infrastructure provisioning
 GCP_REQUIRED_APIS = [
-    "run.googleapis.com",           # Cloud Run
+    "run.googleapis.com",  # Cloud Run
     "artifactregistry.googleapis.com",  # Artifact Registry
-    "cloudbuild.googleapis.com",    # Cloud Build
-    "compute.googleapis.com",       # Compute Engine (for networking)
-    "sqladmin.googleapis.com",      # Cloud SQL
-    "secretmanager.googleapis.com", # Secret Manager
+    "cloudbuild.googleapis.com",  # Cloud Build
+    "compute.googleapis.com",  # Compute Engine (for networking)
+    "sqladmin.googleapis.com",  # Cloud SQL
+    "secretmanager.googleapis.com",  # Secret Manager
 ]
 
 

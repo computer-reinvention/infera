@@ -85,28 +85,60 @@ def is_valid_api_key(key: str) -> bool:
     return True
 
 
+def _is_first_run() -> bool:
+    """Check if this is the first run (no credentials file exists)."""
+    return not CREDENTIALS_FILE.exists()
+
+
 def ensure_api_key() -> bool:
     """Ensure an API key is available, prompting if necessary.
 
     This function should be called at CLI startup. It:
-    1. Checks for existing key (env var or credentials file)
-    2. If not found, prompts the user to enter one
-    3. Saves the key for future use
+    1. On first run with env var set: asks user if they want to use that key
+    2. Checks for existing key (env var or credentials file)
+    3. If not found, prompts the user to enter one
+    4. Saves the key for future use
 
     Returns:
         True if a valid API key is available, False otherwise.
     """
     from infera.cli import output
 
-    # Check if key already exists
+    first_run = _is_first_run()
+
+    # On first run, check if there's an API key in the environment
+    # and ask the user if they want to use it
+    if first_run:
+        env_key = os.environ.get("ANTHROPIC_API_KEY")
+        if env_key:
+            # Show masked key
+            masked = env_key[:10] + "..." + env_key[-4:] if len(env_key) > 14 else "***"
+            output.console.print()
+            output.console.print("[bold cyan]Welcome to Infera![/bold cyan]")
+            output.console.print()
+            output.console.print(
+                f"Found existing API key in environment: [cyan]{masked}[/cyan]"
+            )
+            output.console.print()
+
+            if output.confirm("Use this API key?", default=True):
+                # Save env key to credentials file for future use
+                save_api_key(env_key)
+                output.step_done(f"API key saved to {CREDENTIALS_FILE}")
+                output.console.print()
+                return True
+            # User wants to enter a different key, continue to prompt below
+
+    # Check if key already exists (from credentials file or env)
     key = get_api_key()
-    if key:
+    if key and not first_run:
         return True
 
     # Prompt user for API key
     output.console.print()
-    output.console.print("[bold cyan]Welcome to Infera![/bold cyan]")
-    output.console.print()
+    if not first_run or not os.environ.get("ANTHROPIC_API_KEY"):
+        output.console.print("[bold cyan]Welcome to Infera![/bold cyan]")
+        output.console.print()
     output.console.print("To use Infera, you need an Anthropic API key.")
     output.console.print(
         "Get one at: [link=https://console.anthropic.com/settings/keys]https://console.anthropic.com/settings/keys[/link]"

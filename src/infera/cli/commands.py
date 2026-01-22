@@ -22,11 +22,16 @@ def _require_setup(provider: str | None = None) -> str:
     Raises:
         typer.Exit: If setup fails or is cancelled.
     """
-    from infera.core.onboarding import is_onboarding_complete, run_onboarding, get_default_provider
+    from infera.core.onboarding import (
+        is_onboarding_complete,
+        run_onboarding,
+        get_default_provider,
+    )
 
     # If provider specified, just ensure API key exists
     if provider:
         from infera.core.auth import ensure_api_key
+
         if not ensure_api_key():
             raise typer.Exit(1)
         return provider
@@ -370,15 +375,24 @@ def config_cmd(
         ProviderOnboardingChecker,
         _display_check_results,
     )
-    from infera.core.auth import get_api_key, save_api_key, is_valid_api_key, CREDENTIALS_FILE
+    from infera.core.auth import (
+        get_api_key,
+        save_api_key,
+        is_valid_api_key,
+        CREDENTIALS_FILE,
+    )
 
     # If setting provider
     if provider:
         if provider not in ("gcp", "aws", "azure", "cloudflare"):
-            output.error(f"Invalid provider: {provider}. Must be gcp, aws, azure, or cloudflare.")
+            output.error(
+                f"Invalid provider: {provider}. Must be gcp, aws, azure, or cloudflare."
+            )
             raise typer.Exit(1)
         set_default_provider(provider)  # type: ignore
-        output.step_done(f"Default provider set to {PROVIDER_NAMES.get(provider, provider)}")
+        output.step_done(
+            f"Default provider set to {PROVIDER_NAMES.get(provider, provider)}"
+        )
         return
 
     # If updating API key
@@ -389,14 +403,18 @@ def config_cmd(
         )
         output.console.print()
 
-        key = output.console.input("[bold]Enter your Anthropic API key:[/bold] ").strip()
+        key = output.console.input(
+            "[bold]Enter your Anthropic API key:[/bold] "
+        ).strip()
 
         if not key:
             output.error("No API key provided.")
             raise typer.Exit(1)
 
         if not is_valid_api_key(key):
-            output.warn("This doesn't look like a valid Anthropic API key (should start with 'sk-ant-').")
+            output.warn(
+                "This doesn't look like a valid Anthropic API key (should start with 'sk-ant-')."
+            )
             if not output.confirm("Save anyway?", default=False):
                 raise typer.Exit(1)
 
@@ -408,10 +426,14 @@ def config_cmd(
     if check:
         current_provider = get_default_provider()
         if not current_provider:
-            output.error("No default provider configured. Set one with: infera config -p <provider>")
+            output.error(
+                "No default provider configured. Set one with: infera config -p <provider>"
+            )
             raise typer.Exit(1)
 
-        output.step_start(f"Checking {PROVIDER_NAMES.get(current_provider, current_provider)} setup...")
+        output.step_start(
+            f"Checking {PROVIDER_NAMES.get(current_provider, current_provider)} setup..."
+        )
         checker = ProviderOnboardingChecker(current_provider)
         result = asyncio.run(checker.run_all())
         _display_check_results(result)
@@ -436,7 +458,9 @@ def config_cmd(
     # Provider
     current_provider = get_default_provider()
     if current_provider:
-        output.console.print(f"  [cyan]Provider:[/cyan] {PROVIDER_NAMES.get(current_provider, current_provider)}")
+        output.console.print(
+            f"  [cyan]Provider:[/cyan] {PROVIDER_NAMES.get(current_provider, current_provider)}"
+        )
     else:
         output.console.print(f"  [cyan]Provider:[/cyan] [dim]not set[/dim]")
 
