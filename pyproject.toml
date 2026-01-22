@@ -18,7 +18,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Build Tools",
 ]
-
 dependencies = [
     # CLI
     "typer>=0.9.0",
@@ -52,6 +51,11 @@ dev = [
 
 [project.scripts]
 infera = "infera.cli.main:app"
+
+[project.urls]
+Homepage = "https://github.com/computer-reinvention/infera"
+Repository = "https://github.com/computer-reinvention/infera"
+Issues = "https://github.com/computer-reinvention/infera/issues"
 
 [build-system]
 requires = ["hatchling"]

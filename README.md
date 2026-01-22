@@ -10,40 +10,69 @@ Agentic infrastructure provisioning from code analysis. Infera analyzes your cod
 - **Hybrid Execution**: Uses cloud SDKs for simple resources, Terraform for complex setups
 - **Rollback on Failure**: Atomic provisioning with automatic cleanup
 
-## Installation
+## Quick Setup
+
+### 1. Install via pipx (recommended)
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/infera.git
-cd infera
-
-# Install with uv
-uv sync
-
-# Or install globally
-uv tool install .
+pipx install infera
 ```
 
-## Quick Start
+Or with pip:
 
 ```bash
-# Navigate to your project
+pip install infera
+```
+
+### 2. Set your Anthropic API key
+
+```bash
+export ANTHROPIC_API_KEY="your-api-key"
+```
+
+### 3. Configure your cloud provider
+
+```bash
+# For GCP
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+```
+
+### 4. Run infera
+
+```bash
 cd /path/to/your/project
+infera init    # Analyze codebase and create config
+infera plan    # Preview infrastructure and costs
+infera apply   # Provision resources
+```
 
-# Initialize - analyzes codebase and creates configuration
-uv run infera init
+## Installation Options
 
-# Review the plan and cost estimate
-uv run infera plan
+### pipx (isolated environment)
 
-# Provision the infrastructure
-uv run infera apply
+```bash
+pipx install infera
+```
+
+### pip (global)
+
+```bash
+pip install infera
+```
+
+### From source (development)
+
+```bash
+git clone https://github.com/computer-reinvention/infera.git
+cd infera
+uv sync
+uv run infera --help
 ```
 
 ## Requirements
 
 - Python 3.11+
-- [uv](https://github.com/astral-sh/uv) package manager
 - [Google Cloud SDK](https://cloud.google.com/sdk) (for GCP provider)
 - `ANTHROPIC_API_KEY` environment variable
 
